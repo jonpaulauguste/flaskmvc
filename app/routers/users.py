@@ -1,16 +1,28 @@
-from fastapi.responses import HTMLResponse, RedirectResponse
-from fastapi import Request, status, Form
+from fastapi import HTTPException
+import httpx
+
 from app.dependencies import SessionDep
-from . import api_router
-from app.services.user_service import UserService
 from app.repositories.user import UserRepository
-from app.utilities.flash import flash
-from app.schemas import UserResponse
+from app.schemas import TodoResponse, UserResponse
+from app.services.user_service import UserService
+
+from . import api_router
 
 
-# API endpoint for listing users
 @api_router.get("/users", response_model=list[UserResponse])
-async def list_users(request: Request, db: SessionDep):
+async def list_users(db: SessionDep):
     user_repo = UserRepository(db)
     user_service = UserService(user_repo)
     return user_service.get_all_users()
+
+
+@api_router.get("/todos", response_model=list[TodoResponse])
+async def list_todos():
+    try:
+        async with httpx.AsyncClient(timeout=10.0) as client:
+            response = await client.get("https://jsonplaceholder.typicode.com/todos")
+            response.raise_for_status()
+    except httpx.HTTPError as exc:
+        raise HTTPException(status_code=503, detail="Unable to load todos") from exc
+
+    return response.json()[:50]
